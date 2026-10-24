@@ -1,48 +1,42 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin · Ads Dashboard</title><script src="/common.js"></script>
-<style>body{font-family:Segoe UI,Roboto,Arial,sans-serif;background:#f0f2f5;margin:0;font-size:14px;color:#1c2b33}header{background:#fff;padding:12px 16px;border-bottom:1px solid #dadde1;display:flex;gap:10px;align-items:center}
-.w{max-width:1100px;margin:auto;padding:14px}.box{background:#fff;border:1px solid #dadde1;border-radius:8px;padding:14px;margin-bottom:12px}
+<style>body{font-family:Segoe UI,Roboto,Arial,sans-serif;background:#f0f2f5;margin:0;font-size:14px;color:#1c2b33}header{background:#fff;padding:12px 16px;border-bottom:1px solid #dadde1}
+.w{max-width:1000px;margin:auto;padding:14px}.box{background:#fff;border:1px solid #dadde1;border-radius:8px;padding:14px;margin-bottom:12px}
 input,select{border:1px solid #ccd0d5;border-radius:6px;padding:7px;font-size:14px;max-width:100%}button{background:#0a78be;color:#fff;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;margin:2px}button.g{background:#e4e6eb;color:#1c2b33}button.r{background:#e41e3f}
 .cl{display:flex;gap:8px;align-items:center;padding:8px;border-bottom:1px solid #eee;flex-wrap:wrap}.cl.s{background:#e7f3ff}.lnk{font-size:12px;color:#0a78be;word-break:break-all}
-.n{margin:6px 0 6px 0;padding:8px;border-left:3px solid #0a78be;background:#fafbfc}.n .n{margin-left:16px;border-color:#7b61ff}.n .n .n{border-color:#31a24c}
-.g2{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}label{font-size:12px;color:#65676b;display:block}label input,label select{width:100%}
+.n{margin:8px 0;padding:10px;border-left:3px solid #0a78be;background:#fafbfc}.g2{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}label{font-size:12px;color:#65676b;display:block}label input,label select{width:100%}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}td,th{padding:5px;border-bottom:1px solid #eee;text-align:left}.lock{color:#999}
 #toast{position:fixed;bottom:16px;right:16px;background:#31a24c;color:#fff;padding:10px 14px;border-radius:6px;display:none}</style></head><body>
-<header><b>Ads Dashboard · Admin</b><span style="flex:1"></span><span id="saved"></span></header>
+<header><b>Ads Dashboard · Admin</b></header>
 <div class="w" id="login"><div class="box"><h3>Admin login</h3><input type="password" id="pw" placeholder="Password"> <button onclick="go()">Login</button></div></div>
 <div class="w" id="app" style="display:none">
 <div class="box"><h3 style="margin-top:0">Clients</h3><div id="clients"></div><div style="margin-top:8px"><input id="newc" placeholder="New client name"> <button onclick="addClient()">+ Add client</button></div></div>
-<div id="ed"></div></div><div id="toast">Saved ✓</div>
+<div id="ed"></div></div><div id="toast"></div>
 <script>
-let K=localStorage.k||'',DB,cur;
+let K=localStorage.k||'',DB,cur,TODAY;
 const api=(u,o={})=>fetch(u,{...o,headers:{'x-admin-key':K,'content-type':'application/json'}});
-async function go(){if(pw.value)K=pw.value;const r=await api('/api/admin/db');if(!r.ok){if(pw.value)alert('Wrong password');return}localStorage.k=K;DB=await r.json();login.style.display='none';app.style.display='';draw()}
+async function reload(){const r=await api('/api/admin/db');if(!r.ok)return false;DB=await r.json();TODAY=DB.today;delete DB.today;return true}
+async function go(){if(pw.value)K=pw.value;if(!await reload()){if(pw.value)alert('Wrong password');return}localStorage.k=K;login.style.display='none';app.style.display='';draw()}
 const nid=async()=>(await(await api('/api/admin/newid')).json());
-async function save(){const r=await api('/api/admin/db',{method:'PUT',body:JSON.stringify(DB)});toast.textContent=r.ok?'Saved ✓ — live on client link':'Save failed';toast.style.display='block';setTimeout(()=>toast.style.display='none',1800)}
+function msg(t,ok){toast.textContent=t;toast.style.background=ok?'#31a24c':'#e41e3f';toast.style.display='block';setTimeout(()=>toast.style.display='none',2500)}
+async function save(){const r=await api('/api/admin/db',{method:'PUT',body:JSON.stringify(DB)});if(r.ok)msg('Saved ✓ — live on client link',1);else msg('Not saved: '+((await r.json()).e||r.status));await reload();draw()}
 const C=()=>DB.clients.find(c=>c.id==cur);
-function draw(){clients.innerHTML=DB.clients.map(c=>{const u=location.origin+'/r/'+c.token;return`<div class="cl ${c.id==cur?'s':''}"><b style="cursor:pointer" onclick="cur='${c.id}';draw()">${esc(c.name)}</b> ${c.active?'<span style="color:#31a24c">● link active</span>':'<span style="color:#e41e3f">● link revoked</span>'}<a class="lnk" href="${u}" target="_blank">${u}</a><span style="flex:1"></span><button class="g" onclick="navigator.clipboard.writeText('${u}')">Copy link</button><button class="g" onclick="cur='${c.id}';draw()">Edit</button><button class="${c.active?'r':''}" onclick="tgl('${c.id}')">${c.active?'Revoke link':'Re-activate'}</button><button class="g" onclick="regen('${c.id}')">New link</button><button class="r" onclick="delc('${c.id}')">Delete</button></div>`}).join('');editor()}
-async function addClient(){if(!newc.value)return;const n=await nid();DB.clients.push({id:n.id,name:newc.value,token:n.token,active:true,campaigns:[]});cur=n.id;newc.value='';await save();draw()}
-async function tgl(i){const c=DB.clients.find(c=>c.id==i);c.active=!c.active;await save();draw()}
-async function regen(i){if(!confirm('Old link will stop working. Continue?'))return;DB.clients.find(c=>c.id==i).token=(await nid()).token;await save();draw()}
-async function delc(i){if(!confirm('Delete this client and all data?'))return;DB.clients=DB.clients.filter(c=>c.id!=i);await save();draw()}
-function find(i){const c=C();for(const a of c.campaigns){if(a.id==i)return a;for(const s of a.adsets){if(s.id==i)return s;for(const d of s.ads)if(d.id==i)return d}}}
-async function add(kind,pid){const n=await nid();const c=C();const name=prompt(kind+' name');if(!name)return;
-if(kind=='Campaign')c.campaigns.push({id:n.id,name,status:'ACTIVE',adsets:[]});else if(kind=='Ad set')find(pid).adsets.push({id:n.id,name,status:'ACTIVE',ads:[]});else find(pid).ads.push({id:n.id,name,status:'ACTIVE',video:'',budget:'',budgetType:'daily',stats:{}});await save();draw()}
-async function del(i){if(!confirm('Delete?'))return;const c=C();c.campaigns=c.campaigns.filter(x=>x.id!=i);c.campaigns.forEach(a=>{a.adsets=a.adsets.filter(x=>x.id!=i);a.adsets.forEach(s=>s.ads=s.ads.filter(x=>x.id!=i))});await save();draw()}
-async function set(i,k,v){find(i)[k]=v;await save();if(k=='status')draw()}
-const head=(o,kind,child)=>`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><small>${kind}</small><input value="${esc(o.name)}" onchange="set('${o.id}','name',this.value)" style="flex:1;min-width:160px"><select onchange="set('${o.id}','status',this.value)"><option ${o.status=='ACTIVE'?'selected':''}>ACTIVE</option><option ${o.status!='ACTIVE'?'selected':''}>PAUSED</option></select>${child?`<button class="g" onclick="add('${child}','${o.id}')">+ ${child}</button>`:''}<button class="r" onclick="del('${o.id}')">✕</button></div>`;
-const F=[['spent','Amount spent ₹'],['conv','Conversations'],['leads','Leads/Inquiries'],['reach','Reach'],['impr','Impressions'],['clicks','Link clicks']];
-function adHtml(a){const rows=Object.entries(a.stats||{}).sort().reverse();return`<div class="n">${head(a,'Ad')}
-<div class="g2" style="margin-top:8px"><label>Video link (YouTube/mp4/any)<input value="${esc(a.video)}" onchange="set('${a.id}','video',this.value)"></label><label>Budget ₹<input type="number" value="${esc(a.budget)}" onchange="set('${a.id}','budget',+this.value)"></label><label>Budget type<select onchange="set('${a.id}','budgetType',this.value)"><option value="daily" ${a.budgetType!='lifetime'?'selected':''}>Daily</option><option value="lifetime" ${a.budgetType=='lifetime'?'selected':''}>Lifetime</option></select></label></div>
-<div style="margin-top:10px"><b>Enter daily numbers</b> <small>(same date again = overwrite)</small><div class="g2" id="f${a.id}"><label>Date<input type="date" value="${ds(new Date())}" data-k="date"></label>${F.map(f=>`<label>${f[1]}<input type="number" step="any" data-k="${f[0]}"></label>`).join('')}</div><button onclick="addDay('${a.id}')">Save day</button></div>
-${rows.length?`<table style="width:100%;font-size:12px;margin-top:8px;border-collapse:collapse"><tr><th align=left>Date</th>${F.map(f=>`<th align=right>${f[1]}</th>`).join('')}<th></th></tr>${rows.map(([d,v])=>`<tr><td>${d}</td>${F.map(f=>`<td align=right>${v[f[0]]??''}</td>`).join('')}<td><a href="#" onclick="editDay('${a.id}','${d}');return false">edit</a> <a href="#" style="color:#e41e3f" onclick="rmDay('${a.id}','${d}');return false">✕</a></td></tr>`).join('')}</table>`:''}</div>`}
-async function addDay(i){const el=document.getElementById('f'+i),v={};let d;el.querySelectorAll('input').forEach(x=>{if(x.dataset.k=='date')d=x.value;else v[x.dataset.k]=x.value===''?0:+x.value});if(!d)return alert('Date?');const a=find(i);a.stats=a.stats||{};a.stats[d]=v;await save();draw()}
-function editDay(i,d){const v=find(i).stats[d];document.getElementById('f'+i).querySelectorAll('input').forEach(x=>x.value=x.dataset.k=='date'?d:(v[x.dataset.k]??''))}
-async function rmDay(i,d){delete find(i).stats[d];await save();draw()}
-const brk=o=>Object.entries(o||{}).map(([k,v])=>k+'='+v).join(', ');
-const pbrk=s=>Object.fromEntries(s.split(',').map(x=>x.split('=').map(y=>y.trim())).filter(x=>x[0]&&x[1]).map(([k,v])=>[k,+v]));
-async function setB(k,v){C()[k]=pbrk(v);await save()}
+function draw(){if(cur&&!C())cur=null;clients.innerHTML=DB.clients.map(c=>{const u=location.origin+'/r/'+c.token;return`<div class="cl ${c.id==cur?'s':''}"><b style="cursor:pointer" onclick="cur='${c.id}';draw()">${esc(c.name)}</b> ${c.active?'<span style="color:#31a24c">● link active</span>':'<span style="color:#e41e3f">● link revoked</span>'}<a class="lnk" href="${u}" target="_blank">${u}</a><span style="flex:1"></span><button class="g" onclick="navigator.clipboard.writeText('${u}')">Copy link</button><button class="g" onclick="cur='${c.id}';draw()">Edit</button><button class="${c.active?'r':''}" onclick="tgl('${c.id}')">${c.active?'Revoke link':'Re-activate'}</button><button class="g" onclick="regen('${c.id}')">New link</button><button class="r" onclick="delc('${c.id}')">Delete</button></div>`}).join('');editor()}
+async function addClient(){if(!newc.value)return;const n=await nid();DB.clients.push({id:n.id,name:newc.value,token:n.token,active:true,campaigns:[]});cur=n.id;newc.value='';await save()}
+async function tgl(i){const c=DB.clients.find(c=>c.id==i);c.active=!c.active;await save()}
+async function regen(i){if(!confirm('Old link will stop working. Continue?'))return;DB.clients.find(c=>c.id==i).token=(await nid()).token;await save()}
+async function delc(i){if(!confirm('Delete this client and all data?'))return;DB.clients=DB.clients.filter(c=>c.id!=i);await save()}
+const F=i=>C().campaigns.find(x=>x.id==i);
+async function addCamp(){const name=prompt('Campaign name');if(!name)return;const n=await nid();C().campaigns.unshift({id:n.id,name,status:'ACTIVE',plan:0,start:TODAY,end:'',pkg:'',video:'',days:{}});await save()}
+async function delCamp(i){if(!confirm('Delete campaign?'))return;C().campaigns=C().campaigns.filter(x=>x.id!=i);await save()}
+async function set(i,k,v){F(i)[k]=v;await save()}
+async function saveToday(i){const c=F(i);c.days=c.days||{};c.days[TODAY]={reach:+document.getElementById('r'+i).value||0,leads:+document.getElementById('l'+i).value||0};await save()}
+function camp(c){const t=c.days&&c.days[TODAY]||{},s=sumDays(c),past=Object.entries(c.days||{}).filter(([d])=>d<TODAY).sort().reverse();
+return`<div class="n"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input value="${esc(c.name)}" onchange="set('${c.id}','name',this.value)" style="flex:1;min-width:180px"><select onchange="set('${c.id}','status',this.value)"><option ${c.status=='ACTIVE'?'selected':''}>ACTIVE</option><option ${c.status!='ACTIVE'?'selected':''}>PAUSED</option></select><button class="r" onclick="delCamp('${c.id}')">✕</button></div>
+<div class="g2" style="margin-top:8px"><label>Daily plan ₹<input type="number" value="${esc(c.plan)}" onchange="set('${c.id}','plan',+this.value)"></label><label>Start date<input type="date" value="${esc(c.start)}" onchange="set('${c.id}','start',this.value)"></label><label>End date (optional)<input type="date" value="${esc(c.end)}" onchange="set('${c.id}','end',this.value)"></label><label>Total package ₹ (optional)<input type="number" value="${esc(c.pkg)}" onchange="set('${c.id}','pkg',this.value?+this.value:'')"></label><label style="grid-column:span 2">Ad video link<input value="${esc(c.video)}" onchange="set('${c.id}','video',this.value)"></label></div>
+<div style="margin-top:6px;font-size:12px;color:#65676b">Plan used now (auto): <b>${inr(planUsed(c,Date.now()))}</b> · Total reach ${num(s.reach)} · Total leads ${num(s.leads)}</div>
+<div style="margin-top:10px"><b>Today (${TODAY})</b> <div class="g2"><label>Reach<input id="r${c.id}" type="number" value="${t.reach??''}"></label><label>Leads<input id="l${c.id}" type="number" value="${t.leads??''}"></label></div><button onclick="saveToday('${c.id}')">Save today</button></div>
+${past.length?`<details><summary style="cursor:pointer;margin-top:8px">Past days (locked 🔒) — ${past.length}</summary><table><tr><th>Date</th><th>Reach</th><th>Leads</th></tr>${past.map(([d,v])=>`<tr class="lock"><td>${d} 🔒</td><td>${num(+v.reach||0)}</td><td>${num(+v.leads||0)}</td></tr>`).join('')}</table></details>`:''}</div>`}
 function editor(){const c=C();if(!c){ed.innerHTML='';return}
-ed.innerHTML=`<div class="box"><h3 style="margin-top:0">${esc(c.name)}</h3><label>Client name<input value="${esc(c.name)}" onchange="C().name=this.value;save().then(draw)"></label>
-<div class="g2" style="grid-template-columns:1fr 1fr;margin-top:8px"><label>Demographics % (e.g. Men 25-34=45, Women 25-34=20)<input value="${esc(brk(c.demographics))}" onchange="setB('demographics',this.value)"></label><label>Platforms % (e.g. Instagram=60, Facebook=35, Messenger=5)<input value="${esc(brk(c.platforms))}" onchange="setB('platforms',this.value)"></label></div>
-<p><button onclick="add('Campaign')">+ Campaign</button></p>${c.campaigns.map(cp=>`<div class="n">${head(cp,'Campaign','Ad set')}${cp.adsets.map(s=>`<div class="n">${head(s,'Ad set','Ad')}${s.ads.map(adHtml).join('')}</div>`).join('')}</div>`).join('')}</div>`}
+ed.innerHTML=`<div class="box"><h3 style="margin-top:0">${esc(c.name)}</h3><label>Client name<input value="${esc(c.name)}" onchange="C().name=this.value;save()"></label><p><button onclick="addCamp()">+ Campaign</button> <small>Only ACTIVE campaigns are shown to the client.</small></p>${c.campaigns.map(camp).join('')}</div>`}
 if(K)go();
 </script></body></html>

@@ -1,6 +1,9 @@
-function agg(list,from,to){const t={spent:0,conv:0,leads:0,reach:0,impr:0,clicks:0};for(const ad of list)for(const[d,v]of Object.entries(ad.stats||{}))if(d>=from&&d<=to)for(const k in t)t[k]+=+v[k]||0;
-t.cpc=t.conv?t.spent/t.conv:0;t.cpm=t.impr?t.spent/t.impr*1000:0;t.ctr=t.impr?t.clicks/t.impr*100:0;t.cpl=t.leads?t.spent/t.leads:0;return t}
-const inr=v=>'₹'+(+v).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}),num=v=>(+v).toLocaleString('en-IN');
-const ds=d=>d.toISOString().slice(0,10);
+const IST=5.5*3600e3,DAY=864e5;
+const inr=v=>'₹'+(+v).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}),inr0=v=>'₹'+Math.round(+v).toLocaleString('en-IN'),num=v=>(+v).toLocaleString('en-IN');
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';')}
-function ytId(u){const m=String(u).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);return m&&m[1]}
+const istDate=ms=>new Date(ms+IST).toISOString().slice(0,10);
+const istMidnight=d=>Date.parse(d+'T00:00:00Z')-IST;
+// plan used: elapsed active time since start 00:00 IST * plan/day, capped by end date and package
+function planUsed(c,now){if(!c.plan||!c.start)return 0;let endMs=now;if(c.end)endMs=Math.min(endMs,istMidnight(c.end)+DAY);
+let el=Math.max(0,endMs-istMidnight(c.start)-(c.pausedMs||0));let u=c.plan*el/DAY;if(c.pkg)u=Math.min(u,+c.pkg);return u}
+function sumDays(c){let r=0,l=0;for(const v of Object.values(c.days||{})){r+=+v.reach||0;l+=+v.leads||0}return{reach:r,leads:l}}
