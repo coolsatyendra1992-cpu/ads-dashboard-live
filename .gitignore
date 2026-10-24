@@ -1,0 +1,4 @@
+node_modules
+password.txt
+db.json
+*.log
